@@ -1,562 +1,8 @@
-// const express = require('express');
-// const cors = require('cors');
-// const fs = require('fs').promises;
-// const path = require('path');
-// const { exec } = require('child_process');
-// const { promisify } = require('util');
-
-// const execAsync = promisify(exec);
-// const app = express();
-// const PORT = 5000;
-
-// app.use(cors());
-// app.use(express.json());
-
-// // Directories
-// const TEMP_DIR = path.join(__dirname, 'temp');
-// const OUTPUT_DIR = path.join(__dirname, 'output');
-
-// // Board configurations for PlatformIO
-// const BOARDS = {
-//   'esp32dev': { id: 'esp32dev', name: 'ESP32 Dev Module' },
-//   'esp32-wrover-kit': { id: 'esp32-wrover-kit', name: 'ESP32 Wrover Module' },
-//   'esp32-s2-saola-1': { id: 'esp32-s2-saola-1', name: 'ESP32-S2 Saola' },
-//   'esp32-s3-devkitc-1': { id: 'esp32-s3-devkitc-1', name: 'ESP32-S3 DevKit' },
-//   'esp32-c3-devkitm-1': { id: 'esp32-c3-devkitm-1', name: 'ESP32-C3 DevKit' },
-//   'esp32-c6-devkitc-1': { id: 'esp32-c6-devkitc-1', name: 'ESP32-C6 DevKit' },
-//   'nodemcu-32s': { id: 'nodemcu-32s', name: 'NodeMCU-32S' },
-//   'lolin32': { id: 'lolin32', name: 'Wemos Lolin32' }
-// };
-
-// // Initialize directories
-// async function initDirectories() {
-//   try {
-//     await fs.mkdir(TEMP_DIR, { recursive: true });
-//     await fs.mkdir(OUTPUT_DIR, { recursive: true });
-//     console.log('Directories initialized');
-//   } catch (error) {
-//     console.error('Error creating directories:', error);
-//   }
-// }
-
-// // Create platformio.ini content
-// function createPlatformIOConfig(board) {
-//   return `[env:${board}]
-// platform = espressif32
-// board = ${board}
-// framework = arduino
-// monitor_speed = 115200
-// `;
-// }
-
-// // Compile code using PlatformIO
-// async function compilePlatformIO(projectPath, board) {
-//   try {
-//     // Change to project directory and run PlatformIO compile
-//     const command = `cd "${projectPath}" && pio run`;
-    
-//     console.log(`Executing: ${command}`);
-//     const { stdout, stderr } = await execAsync(command, {
-//       maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-//       timeout: 300000 // 5 minute timeout
-//     });
-
-//     console.log('PlatformIO stdout:', stdout);
-//     if (stderr) console.log('PlatformIO stderr:', stderr);
-
-//     // Find the .bin file in .pio/build directory
-//     const buildDir = path.join(projectPath, '.pio', 'build', board);
-//     const files = await fs.readdir(buildDir);
-//     const binFile = files.find(f => f.endsWith('.bin'));
-
-//     if (!binFile) {
-//       throw new Error('No .bin file generated');
-//     }
-
-//     return path.join(buildDir, binFile);
-//   } catch (error) {
-//     console.error('PlatformIO compilation error:', error);
-//     throw error;
-//   }
-// }
-
-// // Compile endpoint
-// app.post('/compile', async (req, res) => {
-//   const { code, filename, board = 'esp32dev' } = req.body;
-
-//   if (!code || !filename) {
-//     return res.status(400).json({ error: 'Code and filename are required' });
-//   }
-
-//   if (!BOARDS[board]) {
-//     return res.status(400).json({ error: 'Invalid board selected' });
-//   }
-
-//   const timestamp = Date.now();
-//   const projectName = `${filename}_${timestamp}`;
-//   const projectPath = path.join(TEMP_DIR, projectName);
-//   const srcPath = path.join(projectPath, 'src');
-
-//   try {
-//     console.log(`Compiling ${filename} for board ${board}...`);
-
-//     // Create project structure
-//     await fs.mkdir(projectPath, { recursive: true });
-//     await fs.mkdir(srcPath, { recursive: true });
-
-//     // Write platformio.ini
-//     const platformIOConfig = createPlatformIOConfig(board);
-//     await fs.writeFile(path.join(projectPath, 'platformio.ini'), platformIOConfig);
-
-//     // Write the main.cpp file (PlatformIO uses .cpp extension)
-//     await fs.writeFile(path.join(srcPath, 'main.cpp'), code);
-
-//     // Compile using PlatformIO
-//     const binPath = await compilePlatformIO(projectPath, board);
-
-//     // Copy to output directory with a clean name
-//     const outputFilename = `${filename}.bin`;
-//     const outputPath = path.join(OUTPUT_DIR, outputFilename);
-//     await fs.copyFile(binPath, outputPath);
-
-//     console.log(`✅ Compilation successful: ${outputFilename}`);
-
-//     res.json({
-//       success: true,
-//       message: 'Compilation successful',
-//       binFile: outputFilename,
-//       boardName: BOARDS[board].name
-//     });
-
-//     // Cleanup temp directory after a delay
-//     setTimeout(async () => {
-//       try {
-//         await fs.rm(projectPath, { recursive: true, force: true });
-//         console.log(`Cleaned up temp directory: ${projectName}`);
-//       } catch (err) {
-//         console.error('Error cleaning up:', err);
-//       }
-//     }, 5000);
-
-//   } catch (error) {
-//     console.error('Compilation error:', error);
-    
-//     // Cleanup on error
-//     try {
-//       await fs.rm(projectPath, { recursive: true, force: true });
-//     } catch (cleanupError) {
-//       console.error('Error during cleanup:', cleanupError);
-//     }
-
-//     res.status(500).json({
-//       error: 'Compilation failed',
-//       details: error.message,
-//       stderr: error.stderr || ''
-//     });
-//   }
-// });
-
-// // Download endpoint
-// app.get('/download/:filename', async (req, res) => {
-//   const { filename } = req.params;
-//   const filepath = path.join(OUTPUT_DIR, filename);
-
-//   try {
-//     await fs.access(filepath);
-//     res.download(filepath);
-//   } catch (error) {
-//     res.status(404).json({ error: 'File not found' });
-//   }
-// });
-
-// // Health check
-// app.get('/health', (req, res) => {
-//   res.json({ 
-//     status: 'ok',
-//     boards: Object.keys(BOARDS).map(key => BOARDS[key].name)
-//   });
-// });
-
-// // Start server
-// app.listen(PORT, async () => {
-//   await initDirectories();
-//   console.log(`ESP32 Compiler Backend running on http://localhost:${PORT}`);
-//   console.log('Boards available:', Object.values(BOARDS).map(b => b.name).join(', '));
-//   console.log('\n⚠️  Make sure PlatformIO is installed: pip install platformio');
-// });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//this code is only for the manual entering the code and compiling it 
-
-
-
-// const express = require('express');
-// const cors = require('cors');
-// const fs = require('fs').promises;
-// const path = require('path');
-// const { exec } = require('child_process');
-// const { promisify } = require('util');
-
-// const execAsync = promisify(exec);
-// const app = express();
-// const PORT = 5000;
-
-// app.use(cors());
-// app.use(express.json());
-
-// // Directories
-// const TEMP_DIR = path.join(__dirname, 'temp');
-// const OUTPUT_DIR = path.join(__dirname, 'output');
-
-// // Board configurations for PlatformIO
-// const BOARDS = {
-//   'esp32dev': { id: 'esp32dev', name: 'ESP32 Dev Module' },
-//   'esp32-wrover-kit': { id: 'esp32-wrover-kit', name: 'ESP32 Wrover Module' },
-//   'esp32-s2-saola-1': { id: 'esp32-s2-saola-1', name: 'ESP32-S2 Saola' },
-//   'esp32-s3-devkitc-1': { id: 'esp32-s3-devkitc-1', name: 'ESP32-S3 DevKit' },
-//   'esp32-c3-devkitm-1': { id: 'esp32-c3-devkitm-1', name: 'ESP32-C3 DevKit' },
-//   'esp32-c6-devkitc-1': { id: 'esp32-c6-devkitc-1', name: 'ESP32-C6 DevKit' },
-//   'nodemcu-32s': { id: 'nodemcu-32s', name: 'NodeMCU-32S' },
-//   'lolin32': { id: 'lolin32', name: 'Wemos Lolin32' }
-// };
-
-// // Initialize directories
-// async function initDirectories() {
-//   try {
-//     await fs.mkdir(TEMP_DIR, { recursive: true });
-//     await fs.mkdir(OUTPUT_DIR, { recursive: true });
-//     console.log('Directories initialized');
-//   } catch (error) {
-//     console.error('Error creating directories:', error);
-//   }
-// }
-
-// // Create platformio.ini content
-// function createPlatformIOConfig(board) {
-//   return `[env:${board}]
-// platform = espressif32
-// board = ${board}
-// framework = arduino
-// monitor_speed = 115200
-// board_build.flash_mode = dio
-// board_build.partitions = default.csv
-// `;
-// }
-
-// // Merge binary files into a single flashable binary
-// async function mergeBinaries(projectPath, board) {
-//   try {
-//     const buildDir = path.join(projectPath, '.pio', 'build', board);
-    
-//     // Find all the necessary binary files
-//     const firmwareBin = path.join(buildDir, 'firmware.bin');
-//     const bootloaderBin = path.join(buildDir, 'bootloader.bin');
-//     const partitionsBin = path.join(buildDir, 'partitions.bin');
-    
-//     // Check if firmware exists
-//     await fs.access(firmwareBin);
-    
-//     // Use esptool.py to merge all binaries
-//     // Typical flash addresses for ESP32:
-//     // Bootloader: 0x1000
-//     // Partitions: 0x8000
-//     // boot_app0: 0xe000
-//     // Firmware: 0x10000
-    
-//     const mergedBin = path.join(buildDir, 'merged-firmware.bin');
-    
-//     // Use PlatformIO's merge functionality with esptool
-//     const mergeCommand = `cd "${projectPath}" && pio run --target buildfs && esptool.py --chip esp32 merge_bin -o "${mergedBin}" --flash_mode dio --flash_freq 40m --flash_size 4MB 0x1000 "${bootloaderBin}" 0x8000 "${partitionsBin}" 0xe000 "${buildDir}/boot_app0.bin" 0x10000 "${firmwareBin}"`;
-    
-//     try {
-//       const { stdout, stderr } = await execAsync(mergeCommand, {
-//         maxBuffer: 1024 * 1024 * 10,
-//         timeout: 60000
-//       });
-//       console.log('Merge output:', stdout);
-//       if (stderr) console.log('Merge stderr:', stderr);
-//     } catch (mergeError) {
-//       // If esptool merge fails, try alternative method using pio run --target
-//       console.log('Direct merge failed, using alternative method...');
-      
-//       // Alternative: Use PlatformIO's built-in merge
-//       const altCommand = `cd "${projectPath}" && pio run --target upload --upload-port /dev/null 2>&1 | grep -o "esptool.py.*" || echo ""`;
-      
-//       // Actually, let's use a more reliable method - manually merge the files
-//       await manualMergeBinaries(buildDir, mergedBin, board);
-//     }
-    
-//     // Verify merged binary exists
-//     await fs.access(mergedBin);
-//     return mergedBin;
-    
-//   } catch (error) {
-//     console.error('Error merging binaries:', error);
-//     throw new Error(`Failed to merge binaries: ${error.message}`);
-//   }
-// }
-
-// // Manual binary merging function
-// async function manualMergeBinaries(buildDir, outputPath, board) {
-//   try {
-//     // Flash memory layout for ESP32
-//     const BOOTLOADER_OFFSET = 0x1000;
-//     const PARTITION_OFFSET = 0x8000;
-//     const BOOT_APP0_OFFSET = 0xe000;
-//     const FIRMWARE_OFFSET = 0x10000;
-    
-//     // Total size for merged binary (4MB for most ESP32 boards)
-//     const FLASH_SIZE = 4 * 1024 * 1024;
-    
-//     // Create a buffer filled with 0xFF (erased flash state)
-//     const mergedBuffer = Buffer.alloc(FLASH_SIZE, 0xFF);
-    
-//     // Read all binary files
-//     const bootloaderBin = path.join(buildDir, 'bootloader.bin');
-//     const partitionsBin = path.join(buildDir, 'partitions.bin');
-//     const bootApp0Bin = path.join(buildDir, 'boot_app0.bin');
-//     const firmwareBin = path.join(buildDir, 'firmware.bin');
-    
-//     // Write bootloader
-//     try {
-//       const bootloader = await fs.readFile(bootloaderBin);
-//       bootloader.copy(mergedBuffer, BOOTLOADER_OFFSET);
-//       console.log(`✓ Bootloader copied (${bootloader.length} bytes at 0x${BOOTLOADER_OFFSET.toString(16)})`);
-//     } catch (e) {
-//       console.log('⚠ Bootloader not found, skipping...');
-//     }
-    
-//     // Write partition table
-//     try {
-//       const partitions = await fs.readFile(partitionsBin);
-//       partitions.copy(mergedBuffer, PARTITION_OFFSET);
-//       console.log(`✓ Partitions copied (${partitions.length} bytes at 0x${PARTITION_OFFSET.toString(16)})`);
-//     } catch (e) {
-//       console.log('⚠ Partitions not found, skipping...');
-//     }
-    
-//     // Write boot_app0
-//     try {
-//       const bootApp0 = await fs.readFile(bootApp0Bin);
-//       bootApp0.copy(mergedBuffer, BOOT_APP0_OFFSET);
-//       console.log(`✓ boot_app0 copied (${bootApp0.length} bytes at 0x${BOOT_APP0_OFFSET.toString(16)})`);
-//     } catch (e) {
-//       console.log('⚠ boot_app0 not found, skipping...');
-//     }
-    
-//     // Write firmware
-//     const firmware = await fs.readFile(firmwareBin);
-//     firmware.copy(mergedBuffer, FIRMWARE_OFFSET);
-//     console.log(`✓ Firmware copied (${firmware.length} bytes at 0x${FIRMWARE_OFFSET.toString(16)})`);
-    
-//     // Calculate actual size (trim trailing 0xFF bytes)
-//     let actualSize = FLASH_SIZE;
-//     for (let i = FLASH_SIZE - 1; i >= 0; i--) {
-//       if (mergedBuffer[i] !== 0xFF) {
-//         actualSize = i + 1;
-//         break;
-//       }
-//     }
-    
-//     // Write merged binary (truncated to actual size to save space)
-//     await fs.writeFile(outputPath, mergedBuffer.slice(0, actualSize));
-//     console.log(`✓ Merged binary created: ${actualSize} bytes`);
-    
-//   } catch (error) {
-//     console.error('Manual merge error:', error);
-//     throw error;
-//   }
-// }
-
-// // Compile code using PlatformIO
-// async function compilePlatformIO(projectPath, board) {
-//   try {
-//     // Change to project directory and run PlatformIO compile
-//     const command = `cd "${projectPath}" && pio run`;
-    
-//     console.log(`Executing: ${command}`);
-//     const { stdout, stderr } = await execAsync(command, {
-//       maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-//       timeout: 300000 // 5 minute timeout
-//     });
-
-//     console.log('PlatformIO stdout:', stdout);
-//     if (stderr) console.log('PlatformIO stderr:', stderr);
-
-//     // Merge all binaries
-//     const mergedBinPath = await mergeBinaries(projectPath, board);
-    
-//     return mergedBinPath;
-//   } catch (error) {
-//     console.error('PlatformIO compilation error:', error);
-//     throw error;
-//   }
-// }
-
-// // Compile endpoint
-// app.post('/compile', async (req, res) => {
-//   const { code, filename, board = 'esp32dev' } = req.body;
-
-//   if (!code || !filename) {
-//     return res.status(400).json({ error: 'Code and filename are required' });
-//   }
-
-//   if (!BOARDS[board]) {
-//     return res.status(400).json({ error: 'Invalid board selected' });
-//   }
-
-//   const timestamp = Date.now();
-//   const projectName = `${filename}_${timestamp}`;
-//   const projectPath = path.join(TEMP_DIR, projectName);
-//   const srcPath = path.join(projectPath, 'src');
-
-//   try {
-//     console.log(`Compiling ${filename} for board ${board}...`);
-
-//     // Create project structure
-//     await fs.mkdir(projectPath, { recursive: true });
-//     await fs.mkdir(srcPath, { recursive: true });
-
-//     // Write platformio.ini
-//     const platformIOConfig = createPlatformIOConfig(board);
-//     await fs.writeFile(path.join(projectPath, 'platformio.ini'), platformIOConfig);
-
-//     // Write the main.cpp file (PlatformIO uses .cpp extension)
-//     await fs.writeFile(path.join(srcPath, 'main.cpp'), code);
-
-//     // Compile using PlatformIO (now returns merged binary)
-//     const mergedBinPath = await compilePlatformIO(projectPath, board);
-
-//     // Copy to output directory with a clean name
-//     const outputFilename = `${filename}_merged.bin`;
-//     const outputPath = path.join(OUTPUT_DIR, outputFilename);
-//     await fs.copyFile(mergedBinPath, outputPath);
-
-//     // Get file size
-//     const stats = await fs.stat(outputPath);
-//     const fileSizeKB = (stats.size / 1024).toFixed(2);
-
-//     console.log(`✅ Compilation successful: ${outputFilename} (${fileSizeKB} KB)`);
-
-//     res.json({
-//       success: true,
-//       message: 'Compilation successful - Merged binary ready',
-//       binFile: outputFilename,
-//       boardName: BOARDS[board].name,
-//       fileSize: `${fileSizeKB} KB`,
-//       info: 'This binary includes bootloader, partitions, boot_app0, and firmware - ready to flash at 0x0000'
-//     });
-
-//     // Cleanup temp directory after a delay
-//     setTimeout(async () => {
-//       try {
-//         await fs.rm(projectPath, { recursive: true, force: true });
-//         console.log(`Cleaned up temp directory: ${projectName}`);
-//       } catch (err) {
-//         console.error('Error cleaning up:', err);
-//       }
-//     }, 5000);
-
-//   } catch (error) {
-//     console.error('Compilation error:', error);
-    
-//     // Cleanup on error
-//     try {
-//       await fs.rm(projectPath, { recursive: true, force: true });
-//     } catch (cleanupError) {
-//       console.error('Error during cleanup:', cleanupError);
-//     }
-
-//     res.status(500).json({
-//       error: 'Compilation failed',
-//       details: error.message,
-//       stderr: error.stderr || ''
-//     });
-//   }
-// });
-
-// // Download endpoint
-// app.get('/download/:filename', async (req, res) => {
-//   const { filename } = req.params;
-//   const filepath = path.join(OUTPUT_DIR, filename);
-
-//   try {
-//     await fs.access(filepath);
-//     res.download(filepath);
-//   } catch (error) {
-//     res.status(404).json({ error: 'File not found' });
-//   }
-// });
-
-// // Health check
-// app.get('/health', (req, res) => {
-//   res.json({ 
-//     status: 'ok',
-//     boards: Object.keys(BOARDS).map(key => BOARDS[key].name)
-//   });
-// });
-
-// // Start server
-// app.listen(PORT, async () => {
-//   await initDirectories();
-//   console.log(`ESP32 Compiler Backend running on http://localhost:${PORT}`);
-//   console.log('Boards available:', Object.values(BOARDS).map(b => b.name).join(', '));
-//   console.log('\n⚠️  Make sure PlatformIO is installed: pip install platformio');
-//   console.log('⚠️  Make sure esptool is installed: pip install esptool');
-// });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// --> 1. Import new packages
+require('dotenv').config(); // For environment variables
+const http = require('http'); // For socket.io
+const { Server } = require("socket.io");
+const mqtt = require('mqtt'); // For MQTT bridge
 
 const express = require('express');
 const cors = require('cors');
@@ -573,15 +19,27 @@ const PORT = 5000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize Gemini AI
-const GEMINI_API_KEY = 'AIzaSyB3KsN4N3ircjXQt5AY1v-piTHFoKPQEVg'; 
+// --> 2. Create HTTP server and Socket.IO server
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Allow all origins (for development)
+    methods: ["GET", "POST"]
+  }
+});
+
+// --> 3. SECURELY load API key
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
+if (!GEMINI_API_KEY) {
+  console.warn("⚠️ WARNING: GEMINI_API_KEY not set. Please create a .env file.");
+}
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Directories
 const TEMP_DIR = path.join(__dirname, 'temp');
 const OUTPUT_DIR = path.join(__dirname, 'output');
 
-// Board configurations for PlatformIO
+// Board configurations (no changes)
 const BOARDS = {
   'esp32dev': { id: 'esp32dev', name: 'ESP32 Dev Module' },
   'esp32-wrover-kit': { id: 'esp32-wrover-kit', name: 'ESP32 Wrover Module' },
@@ -593,7 +51,7 @@ const BOARDS = {
   'lolin32': { id: 'lolin32', name: 'Wemos Lolin32' }
 };
 
-// Skeleton code template
+// --> 4. FIXED: Complete SKELETON_CODE
 const SKELETON_CODE = `#include <WiFi.h>
 #include <PubSubClient.h>
 #include <esp_task_wdt.h>
@@ -865,22 +323,20 @@ bool reconnectMQTT() {
     }
     return false;
 }
-
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    String message;
-    for (unsigned int i = 0; i < length; i++) {
-        message += (char)payload[i];
-    }
-    
-    Serial.print("📨 Message received [");
-    Serial.print(topic);
-    Serial.print("]: ");
-    Serial.println(message);
-    
-    // ADD COMMAND HANDLING HERE
+  String message; // <-- Reverted back to an Arduino String object
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  
+  Serial.print("Message received [");
+  Serial.print(topic);
+  Serial.print("]: ");
+  Serial.println(message);
+  
+  // ADD COMMAND HANDLING HERE
 {{MQTT_CALLBACK}}
 }
-
 void handleRoot() {
     server.send(200, "text/html", CONFIG_HTML);
 }
@@ -922,7 +378,48 @@ void handleSave() {
     ESP.restart();
 }`;
 
-// Initialize directories
+// --- MQTT Bridge Logic (Unchanged) ---
+const MQTT_BROKER = "mqtt://broker.emqx.io";
+const MQTT_TOPIC_SUB = "uiot/#"; 
+
+console.log(`Connecting to MQTT broker at ${MQTT_BROKER}...`);
+const mqttClient = mqtt.connect(MQTT_BROKER);
+
+mqttClient.on('connect', () => {
+  console.log('✅ Connected to MQTT broker');
+  mqttClient.subscribe(MQTT_TOPIC_SUB, (err) => {
+    if (!err) {
+      console.log(`Subscribed to topic: ${MQTT_TOPIC_SUB}`);
+    } else {
+      console.error('MQTT subscription error:', err);
+    }
+  });
+});
+
+mqttClient.on('message', (topic, message) => {
+  const payload = {
+    topic: topic.toString(),
+    data: message.toString(),
+  };
+  console.log(`MQTT -> Socket.IO: ${payload.topic}`);
+  io.emit('mqtt_data', payload); 
+});
+
+mqttClient.on('error', (err) => {
+  console.error('MQTT connection error:', err);
+});
+
+// --- Socket.IO connection logging (Unchanged) ---
+io.on('connection', (socket) => {
+  console.log(`✅ Socket.IO user connected: ${socket.id}`);
+  socket.on('disconnect', () => {
+    console.log(`❌ Socket.IO user disconnected: ${socket.id}`);
+  });
+});
+
+
+// --- All helper functions (initDirectories, generateSensorCode, etc.) are unchanged ---
+
 async function initDirectories() {
   try {
     await fs.mkdir(TEMP_DIR, { recursive: true });
@@ -932,12 +429,14 @@ async function initDirectories() {
     console.error('Error creating directories:', error);
   }
 }
-
-// Generate code using Gemini AI
 async function generateSensorCode(userPrompt) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured on the server.");
+  }
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
+    // --- UPDATED PROMPT (with typo fixed) ---
     const prompt = `You are an expert ESP32 Arduino programmer. Generate ONLY the sensor-specific code based on the user's requirements.
 
 USER REQUEST: ${userPrompt}
@@ -945,18 +444,18 @@ USER REQUEST: ${userPrompt}
 INSTRUCTIONS:
 1. Analyze the sensor type, pin configuration, and desired functionality
 2. Generate code in EXACTLY 4 sections with these markers:
-   - LIBRARIES: All #include statements for sensor libraries (one per line)
-   - GLOBALS: Global variables, sensor objects, constants
-   - INIT: Sensor initialization code for setup()
-   - LOOP: Sensor reading and MQTT publishing code for loop()
-   - CALLBACK: MQTT command handling code (if needed)
+    - LIBRARIES: All #include statements for sensor libraries (one per line)
+    - GLOBALS: Global variables, sensor objects, constants
+    - INIT: Sensor initialization code for setup()
+    - LOOP: Sensor reading and MQTT publishing code for loop()
+    - CALLBACK: MQTT command handling code (if needed)
 
 3. Use these exact section markers:
-   // SECTION: LIBRARIES
-   // SECTION: GLOBALS
-   // SECTION: INIT
-   // SECTION: LOOP
-   // SECTION: CALLBACK
+    // SECTION: LIBRARIES
+    // SECTION: GLOBALS
+    // SECTION: INIT
+    // SECTION: LOOP
+    // SECTION: CALLBACK
 
 4. For MQTT publishing, use: mqttClient.publish("topic", message)
 5. Include error handling and Serial.println() for debugging
@@ -964,6 +463,12 @@ INSTRUCTIONS:
 7. DO NOT include any WiFi, MQTT setup, or skeleton code
 8. DO NOT include any #include statements that are already in the skeleton (WiFi.h, PubSubClient.h, WebServer.h, Preferences.h, DNSServer.h, esp_task_wdt.h)
 
+9. --- NEW RULE ---
+   In the CALLBACK section, the incoming message is stored in an Arduino 'String' object named 'message'. 
+   DO NOT use 'strcmp' for the message content. 
+   USE 'message.equals("COMMAND")' or 'message == "COMMAND"' for comparisons.
+
+10.wrap the generated code within skeleton code at respective parts. make sure u dont remove the skeleton code.
 EXAMPLE FORMAT:
 
 // SECTION: LIBRARIES
@@ -987,17 +492,17 @@ if (millis() - lastDHTRead >= DHT_INTERVAL) {
     float humidity = dht.readHumidity();
     
     if (!isnan(temp) && !isnan(humidity)) {
-        String payload = "{\\"temp\\":" + String(temp) + ",\\"humidity\\":" + String(humidity) + "}";
-        mqttClient.publish("uiot/sensor/dht22", payload.c_str());
-        Serial.println("Published: " + payload);
+       String payload = "{\\"temp\\":" + String(temp) + ",\\"humidity\\":" + String(humidity) + "}";
+       mqttClient.publish("uiot/dht22/data", payload.c_str()); // --> Specific topic format
+       Serial.println("Published: " + payload);
     }
 }
 
 // SECTION: CALLBACK
-if (strcmp(topic, "uiot/commands") == 0) {
-    if (message == "READ") {
-        float temp = dht.readTemperature();
-        mqttClient.publish("uiot/sensor/dht22", String(temp).c_str());
+if (strcmp(topic, "uiot/commands") == 0) { // strcmp is OK for 'topic' (char*)
+    if (message == "READ") { // == is OK for 'message' (String)
+       float temp = dht.readTemperature();
+       mqttClient.publish("uiot/dht22/data", String(temp).c_str());
     }
 }
 
@@ -1005,17 +510,23 @@ Now generate the code for: ${userPrompt}`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const generatedCode = response.text();
+    let generatedCode = response.text(); // <-- Changed to 'let'
 
-    console.log('Generated code from Gemini:', generatedCode);
-    return generatedCode;
+    // --- THIS IS THE CRITICAL PART YOU ARE MISSING ---
+    // Clean up markdown backticks (```) and common AI chatter
+    generatedCode = generatedCode.replace(/```(cpp|c\+\+)?\s*|```\s*/g, ''); 
+    generatedCode = generatedCode.trim();
+    // --- END OF CRITICAL PART ---
+
+    console.log('Generated code from Gemini (Cleaned):', generatedCode);
+    return generatedCode; // This will now return the CLEANED code
+
   } catch (error) {
     console.error('Gemini API Error:', error);
     throw new Error(`AI code generation failed: ${error.message}`);
   }
 }
 
-// Parse generated code sections
 function parseGeneratedCode(generatedCode) {
   const sections = {
     libraries: '',
@@ -1040,7 +551,6 @@ function parseGeneratedCode(generatedCode) {
   return sections;
 }
 
-// Merge generated code with skeleton
 function mergeCodeWithSkeleton(sections) {
   let mergedCode = SKELETON_CODE;
 
@@ -1053,7 +563,6 @@ function mergeCodeWithSkeleton(sections) {
   return mergedCode;
 }
 
-// Extract libraries from code
 function extractLibraries(code) {
   const libraries = [];
   const includePattern = /#include\s*[<"]([^>"]+)[>"]/g;
@@ -1061,8 +570,7 @@ function extractLibraries(code) {
 
   while ((match = includePattern.exec(code)) !== null) {
     const libName = match[1];
-    // Skip standard libraries
-    if (!['WiFi.h', 'WebServer.h', 'Preferences.h', 'DNSServer.h', 'esp_task_wdt.h'].includes(libName)) {
+    if (!['WiFi.h', 'WebServer.h', 'Preferences.h', 'DNSServer.h', 'esp_task_wdt.h', 'PubSubClient.h'].includes(libName)) {
       libraries.push(libName);
     }
   }
@@ -1070,13 +578,12 @@ function extractLibraries(code) {
   return libraries;
 }
 
-// Map library names to PlatformIO library IDs
 function mapLibraryToPlatformIO(libName) {
   const libraryMap = {
     'DHT.h': 'adafruit/DHT sensor library',
     'Adafruit_Sensor.h': 'adafruit/Adafruit Unified Sensor',
-    'Wire.h': '', // Built-in
-    'SPI.h': '', // Built-in
+    'Wire.h': '', 
+    'SPI.h': '', 
     'Adafruit_BMP280.h': 'adafruit/Adafruit BMP280 Library',
     'Adafruit_BME280.h': 'adafruit/Adafruit BME280 Library',
     'OneWire.h': 'paulstoffregen/OneWire',
@@ -1084,20 +591,19 @@ function mapLibraryToPlatformIO(libName) {
     'Adafruit_GFX.h': 'adafruit/Adafruit GFX Library',
     'Adafruit_SSD1306.h': 'adafruit/Adafruit SSD1306',
     'ArduinoJson.h': 'bblanchon/ArduinoJson',
-    'MPU6050.h': 'electroniccats/MPU6050',
+    'MPU6050.h': 'electroniccats/MPU6050', 
     'Adafruit_MPU6050.h': 'adafruit/Adafruit MPU6050',
     'Adafruit_NeoPixel.h': 'adafruit/Adafruit NeoPixel',
     'Servo.h': 'arduino-libraries/Servo',
     'MFRC522.h': 'miguelbalboa/MFRC522',
-    'PubSubClient.h': 'knolleary/PubSubClient',
+    'PubSubClient.h': 'knolleary/PubSubClient', 
     'PZEM004Tv30.h': 'mandulaj/PZEM-004T-v30',
-    'LiquidCrystal_I2C.h': 'marcoschwartz/LiquidCrystal_I2C'
+    'LiquidCrystal_I2C.h': 'marcoschwartz/LiquidCrystal_I2C',
+    'HW480.h': '' 
   };
-
-  return libraryMap[libName] || '';
+  return libraryMap[libName] || `Library not mapped: ${libName}`;
 }
 
-// Create platformio.ini with detected libraries
 function createPlatformIOConfig(board, libraries) {
   let config = `[env:${board}]
 platform = espressif32
@@ -1108,27 +614,31 @@ board_build.flash_mode = dio
 board_build.partitions = default.csv
 `;
 
+  let allLibs = ['knolleary/PubSubClient'];
+
   if (libraries.length > 0) {
     const platformIOLibs = libraries
       .map(lib => mapLibraryToPlatformIO(lib))
-      .filter(lib => lib !== '');
+      .filter(lib => lib !== '' && !lib.startsWith('Library not mapped')); 
     
-    if (platformIOLibs.length > 0) {
-      config += `lib_deps = \n`;
-      platformIOLibs.forEach(lib => {
-        config += `    ${lib}\n`;
-      });
-    }
+    allLibs = [...allLibs, ...platformIOLibs];
+  }
+
+  const uniqueLibs = [...new Set(allLibs)];
+  
+  if (uniqueLibs.length > 0) {
+    config += `lib_deps = \n`;
+    uniqueLibs.forEach(lib => {
+      config += `    ${lib}\n`;
+    });
   }
 
   return config;
 }
 
-// Validate generated code
 function validateCode(code) {
   const errors = [];
   
-  // Check for required structure
   if (!code.includes('void setup()')) {
     errors.push('Missing setup() function');
   }
@@ -1136,7 +646,6 @@ function validateCode(code) {
     errors.push('Missing loop() function');
   }
   
-  // Check for dangerous functions
   const dangerousFunctions = ['system(', 'exec(', 'popen(', 'eval('];
   dangerousFunctions.forEach(func => {
     if (code.includes(func)) {
@@ -1144,7 +653,6 @@ function validateCode(code) {
     }
   });
   
-  // Check for balanced braces
   const openBraces = (code.match(/{/g) || []).length;
   const closeBraces = (code.match(/}/g) || []).length;
   if (openBraces !== closeBraces) {
@@ -1154,7 +662,6 @@ function validateCode(code) {
   return { valid: errors.length === 0, errors };
 }
 
-// Manual binary merging function
 async function manualMergeBinaries(buildDir, outputPath) {
   try {
     const BOOTLOADER_OFFSET = 0x1000;
@@ -1215,7 +722,6 @@ async function manualMergeBinaries(buildDir, outputPath) {
   }
 }
 
-// Merge binaries
 async function mergeBinaries(projectPath, board) {
   try {
     const buildDir = path.join(projectPath, '.pio', 'build', board);
@@ -1231,7 +737,6 @@ async function mergeBinaries(projectPath, board) {
   }
 }
 
-// Compile code using PlatformIO
 async function compilePlatformIO(projectPath, board) {
   try {
     const command = `cd "${projectPath}" && pio run`;
@@ -1253,16 +758,20 @@ async function compilePlatformIO(projectPath, board) {
   }
 }
 
-// AI-powered compile endpoint
+
+// --- API Endpoints ---
+
 app.post('/ai-compile', async (req, res) => {
   const { prompt, board = 'esp32dev' } = req.body;
 
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
-
   if (!BOARDS[board]) {
     return res.status(400).json({ error: 'Invalid board selected' });
+  }
+  if (!GEMINI_API_KEY) {
+    return res.status(500).json({ error: 'AI is not configured on the server.' });
   }
 
   const timestamp = Date.now();
@@ -1272,17 +781,11 @@ app.post('/ai-compile', async (req, res) => {
 
   try {
     console.log(`\n🤖 AI Code Generation for: ${prompt}`);
-
-    // Step 1: Generate code using Gemini
     const generatedCode = await generateSensorCode(prompt);
     
-    // Step 2: Parse sections
     const sections = parseGeneratedCode(generatedCode);
-    
-    // Step 3: Merge with skeleton
     const finalCode = mergeCodeWithSkeleton(sections);
     
-    // Step 4: Validate code
     const validation = validateCode(finalCode);
     if (!validation.valid) {
       return res.status(400).json({
@@ -1291,26 +794,20 @@ app.post('/ai-compile', async (req, res) => {
       });
     }
     
-    // Step 5: Extract libraries
     const libraries = extractLibraries(finalCode);
     console.log('Detected libraries:', libraries);
     
-    // Step 6: Create project structure
     await fs.mkdir(projectPath, { recursive: true });
     await fs.mkdir(srcPath, { recursive: true });
 
-    // Step 7: Write platformio.ini with libraries
     const platformIOConfig = createPlatformIOConfig(board, libraries);
     await fs.writeFile(path.join(projectPath, 'platformio.ini'), platformIOConfig);
 
-    // Step 8: Write the merged code
     await fs.writeFile(path.join(srcPath, 'main.cpp'), finalCode);
 
-    // Step 9: Compile
     console.log('🔨 Compiling code...');
     const mergedBinPath = await compilePlatformIO(projectPath, board);
 
-    // Step 10: Copy to output
     const outputFilename = `iot_device_${timestamp}.bin`;
     const outputPath = path.join(OUTPUT_DIR, outputFilename);
     await fs.copyFile(mergedBinPath, outputPath);
@@ -1327,7 +824,7 @@ app.post('/ai-compile', async (req, res) => {
       boardName: BOARDS[board].name,
       fileSize: `${fileSizeKB} KB`,
       libraries: libraries,
-      generatedCode: finalCode
+      generatedCode: finalCode // Send the code back to frontend
     });
 
     // Cleanup
@@ -1342,13 +839,11 @@ app.post('/ai-compile', async (req, res) => {
 
   } catch (error) {
     console.error('AI Compilation error:', error);
-    
     try {
       await fs.rm(projectPath, { recursive: true, force: true });
     } catch (cleanupError) {
       console.error('Cleanup error:', cleanupError);
     }
-
     res.status(500).json({
       error: 'AI compilation failed',
       details: error.message,
@@ -1357,14 +852,13 @@ app.post('/ai-compile', async (req, res) => {
   }
 });
 
-// Original compile endpoint (still available)
+// Original compile endpoint (no changes)
 app.post('/compile', async (req, res) => {
   const { code, filename, board = 'esp32dev' } = req.body;
 
   if (!code || !filename) {
     return res.status(400).json({ error: 'Code and filename are required' });
   }
-
   if (!BOARDS[board]) {
     return res.status(400).json({ error: 'Invalid board selected' });
   }
@@ -1380,7 +874,7 @@ app.post('/compile', async (req, res) => {
     await fs.mkdir(projectPath, { recursive: true });
     await fs.mkdir(srcPath, { recursive: true });
 
-    const platformIOConfig = createPlatformIOConfig(board, []);
+    const platformIOConfig = createPlatformIOConfig(board, []); 
     await fs.writeFile(path.join(projectPath, 'platformio.ini'), platformIOConfig);
     await fs.writeFile(path.join(srcPath, 'main.cpp'), code);
 
@@ -1429,7 +923,6 @@ app.post('/compile', async (req, res) => {
   }
 });
 
-// Download endpoint
 app.get('/download/:filename', async (req, res) => {
   const { filename } = req.params;
   const filepath = path.join(OUTPUT_DIR, filename);
@@ -1442,7 +935,6 @@ app.get('/download/:filename', async (req, res) => {
   }
 });
 
-// Get available boards
 app.get('/boards', (req, res) => {
   res.json({
     boards: Object.keys(BOARDS).map(key => ({
@@ -1452,22 +944,27 @@ app.get('/boards', (req, res) => {
   });
 });
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok',
     boards: Object.keys(BOARDS).map(key => BOARDS[key].name),
-    aiEnabled: GEMINI_API_KEY !== 'AIzaSyB3KsN4N3ircjXQt5AY1v-piTHFoKPQEVg'
+    aiEnabled: !!GEMINI_API_KEY
   });
 });
 
-// Start server
-app.listen(PORT, async () => {
+// --> 6. Start the 'server' (not 'app')
+server.listen(PORT, async () => {
   await initDirectories();
   console.log(`\n🚀 ESP32 AI Compiler Backend running on http://localhost:${PORT}`);
+  console.log(`📡 Socket.IO server initialized.`);
   console.log('📋 Available boards:', Object.values(BOARDS).map(b => b.name).join(', '));
   console.log('\n⚠️  Requirements:');
   console.log('   - PlatformIO: pip install platformio');
   console.log('   - Gemini SDK: npm install @google/generative-ai');
-  console.log(`   - AI Status: ${GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY_HERE' ? '✅ Enabled' : '❌ API Key Required'}\n`);
+  console.log('   - Sockets: npm install socket.io');
+  console.log('   - MQTT: npm install mqtt');
+  console.log('   - ENV: npm install dotenv (and create .env file)');
+  
+  const aiStatus = GEMINI_API_KEY ? '✅ Enabled' : '❌ API Key Required (create .env file)';
+  console.log(`   - AI Status: ${aiStatus}\n`);
 });
